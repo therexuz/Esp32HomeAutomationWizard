@@ -16,6 +16,7 @@
 ***************************************************************************/
 
 #include <Wire.h>
+#include <DHT.h>
 #include <SPI.h>
 #include <WiFi.h>
 #include <PubSubClient.h>
@@ -23,11 +24,13 @@
 #include <Adafruit_BMP280.h>
 #include <ArduinoJson.h>
 
+#define DHTPIN 2
+#define DHTTYPE DHT11
+
+DHT dht(DHTPIN,DHTTYPE);
+
 Adafruit_BMP280 bmp; //I2C
 StaticJsonDocument<200> doc;
-
-float temperature = 0;
-float pressure = 0;
 
 // Replace the next variables with your SSID/Password combination
 const char* ssid = "MQTT-RASP-AP";
@@ -45,14 +48,23 @@ int value = 0;
 void setup() {
   Serial.begin(9600);
 
-  Serial.println("Initiating BPM");
-  init_bmp();
+  //Serial.println("Initiating BPM");
+  //init_bmp();
+  //delay(1000);
+  dht.begin();
   Serial.println("Initiating WiFi");
   init_WiFi();
 
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
-  delay(100);
+  pinMode(34,INPUT);
+
+  //Pins de luces led
+  pinMode(17,OUTPUT);
+  pinMode(16,OUTPUT);
+  pinMode(18,OUTPUT);
+  pinMode(19,OUTPUT);
+  pinMode(5,OUTPUT);
 }
 
 void init_WiFi() {
@@ -81,32 +93,73 @@ void init_bmp() {
   }
 }
 
-void callback(char* topic, byte* message, unsigned int length) {
+void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("Message arrived on topic: ");
   Serial.print(topic);
   Serial.print(". Message: ");
 
-  String messageTemp;
-  for (int i = 0; i < length; i++) {
-    messageTemp += (char)message[i];
-  }
+ // Crear una instancia de String a partir de los datos de payload
+    String messageTemp = String((char*)payload, length);
 
   Serial.println(messageTemp);
+
+  if (String(topic) == "test-mqtt"){
+    if(messageTemp == "test"){
+      client.publish("test-result","ok");  
+    }
+  }
+  
+  if (String(topic) == "leds"){
+
+    // Obtener el estado y el ID de la luz desde el mensaje
+    String state = messageTemp.substring(0, 2);  // "ON" o "OFF"
+    int lightId = messageTemp.substring(2).toInt();
+
+    Serial.println(lightId);
+    
+    if(state == "ON"){
+       digitalWrite(lightId,HIGH);
+       delay(1000);
+       Serial.println("Led ON");  
+     } 
+     if(state == "OFF"){
+       digitalWrite(lightId,LOW);
+       delay(1000);
+       Serial.println("Led OFF");  
+     }
+   }
 }
 
 void reconnect() {
   // Loop until we're reconnected
   while (!client.connected()) {
-    Serial.print("Attempting MQTT connection...");
+    
     // Attempt to connect
+    Serial.print("Attempting MQTT connection...");
+    
     if (client.connect("ESP8266Client")) {
       Serial.println("connected");
-      // Subscribe
-      client.subscribe("esp32/output");
+      // Subscribe to testing topic
+      client.subscribe("test-mqtt");
+      
+      // Subscribe to sensor topics
+      client.subscribe("humidity");
+      client.subscribe("temperature");
+      client.subscribe("pressure");
+      client.subscribe("air_quality");
+      client.subscribe("light");
+      
+      // Subscribe to actuator topics
+      client.subscribe("leds");
+      client.subscribe("door");
+      client.subscribe("ventilation");
+      
     } else {
+      
       Serial.print("failed, rc=");
       Serial.print(client.state());
       Serial.println(" try again in 5 seconds");
+      
       // Wait 5 seconds before retrying
       delay(5000);
     }
@@ -114,28 +167,37 @@ void reconnect() {
 }
 
 void loop() {
+  
   if (!client.connected()) {
     reconnect();
   }
+  
   client.loop();
+  delay(1000);
 
   long now = millis();
   if (now - lastMsg > 5000) {
     lastMsg = now;
 
     doc.clear();
-    JsonObject device = doc.createNestedObject("BMP280");
-    JsonObject status = device.createNestedObject("status");
+    JsonObject device = doc.createNestedObject("ESP32 MQTT CLIENT");
+    JsonObject value = device.createNestedObject("value");
+    
+    float humidity = dht.readHumidity();
+    value["act_humidity"] = humidity;
 
-    float temperature = bmp.readTemperature();
-    status["temperature"] = temperature;
+    float temperature_celcius = dht.readTemperature();
+    value["act_temperature"] = temperature_celcius;
 
-    float pressure = bmp.readPressure() / 100.0;
-    status["pressure"] = pressure;
+    String jsonStringHumidity;
+    serializeJson(doc["ESP32 MQTT CLIENT"]["value"]["act_humidity"], jsonStringHumidity);
+    
+    client.publish("humidity", jsonStringHumidity.c_str());
 
-    String jsonString;
-    serializeJson(doc, jsonString);
+    String jsonStringTemperature;
+    serializeJson(doc["ESP32 MQTT CLIENT"]["value"]["act_temperature"], jsonStringTemperature);
+    client.publish("temperature", jsonStringTemperature.c_str());
+    
 
-    client.publish("homewizard_mqtt", jsonString.c_str());
-  }
+  }  
 }
