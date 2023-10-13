@@ -57,6 +57,8 @@ void setup() {
 
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
+
+  //Pin sensor DHT_11
   pinMode(34,INPUT);
 
   //Pins de luces led
@@ -98,8 +100,10 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print(topic);
   Serial.print(". Message: ");
 
- // Crear una instancia de String a partir de los datos de payload
-    String messageTemp = String((char*)payload, length);
+  String messageTemp;
+  for (int i = 0; i < length; i++) {
+    messageTemp += (char)payload[i];
+  }
 
   Serial.println(messageTemp);
 
@@ -111,10 +115,13 @@ void callback(char* topic, byte* payload, unsigned int length) {
   
   if (String(topic) == "leds"){
 
-    // Obtener el estado y el ID de la luz desde el mensaje
-    String state = messageTemp.substring(0, 2);  // "ON" o "OFF"
-    int lightId = messageTemp.substring(2).toInt();
+    String state = messageTemp.substring(0, 3);  // Los primeros 3 caracteres son el estado
+    int lightId = messageTemp.substring(3).toInt(); // Los caracteres restantes son la ID
 
+    Serial.print("state: ");
+    Serial.println(state);
+    state.trim();
+    Serial.print("light_id: ");
     Serial.println(lightId);
     
     if(state == "ON"){
@@ -173,8 +180,7 @@ void loop() {
   }
   
   client.loop();
-  delay(1000);
-
+ 
   long now = millis();
   if (now - lastMsg > 5000) {
     lastMsg = now;
@@ -182,7 +188,10 @@ void loop() {
     doc.clear();
     JsonObject device = doc.createNestedObject("ESP32 MQTT CLIENT");
     JsonObject value = device.createNestedObject("value");
-    
+
+    int light_sensor_value = analogRead(34);
+    value["light_sensor"] = light_sensor_value;
+        
     float humidity = dht.readHumidity();
     value["act_humidity"] = humidity;
 
@@ -197,7 +206,12 @@ void loop() {
     String jsonStringTemperature;
     serializeJson(doc["ESP32 MQTT CLIENT"]["value"]["act_temperature"], jsonStringTemperature);
     client.publish("temperature", jsonStringTemperature.c_str());
-    
 
+    String jsonStringLightValue;
+    serializeJson(doc["ESP32 MQTT CLIENT"]["value"]["light_sensor"], jsonStringLightValue);
+    client.publish("light", jsonStringLightValue.c_str());
+    
+    delay(500);
   }  
+   
 }
