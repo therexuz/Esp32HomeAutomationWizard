@@ -24,7 +24,7 @@
 #include <Adafruit_BMP280.h>
 #include <ArduinoJson.h>
 
-#define DHTPIN 2
+#define DHTPIN 4
 #define DHTTYPE DHT11
 
 DHT dht(DHTPIN,DHTTYPE);
@@ -46,6 +46,7 @@ char msg[100];
 int value = 0;
 
 void setup() {
+  
   Serial.begin(9600);
 
   //Serial.println("Initiating BPM");
@@ -58,7 +59,7 @@ void setup() {
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
 
-  //Pin sensor DHT_11
+  //Pin sensor de intensidad luminica
   pinMode(34,INPUT);
 
   //Pins de luces led
@@ -67,6 +68,7 @@ void setup() {
   pinMode(18,OUTPUT);
   pinMode(19,OUTPUT);
   pinMode(5,OUTPUT);
+  
 }
 
 void init_WiFi() {
@@ -129,6 +131,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
        delay(1000);
        Serial.println("Led ON");  
      } 
+     
      if(state == "OFF"){
        digitalWrite(lightId,LOW);
        delay(1000);
@@ -148,6 +151,7 @@ void reconnect() {
       Serial.println("connected");
       // Subscribe to testing topic
       client.subscribe("test-mqtt");
+      client.subscribe("test-result");
       
       // Subscribe to sensor topics
       client.subscribe("humidity");
@@ -186,6 +190,7 @@ void loop() {
     lastMsg = now;
 
     doc.clear();
+    
     JsonObject device = doc.createNestedObject("ESP32 MQTT CLIENT");
     JsonObject value = device.createNestedObject("value");
 
@@ -211,7 +216,6 @@ void loop() {
     serializeJson(doc["ESP32 MQTT CLIENT"]["value"]["light_sensor"], jsonStringLightValue);
     client.publish("light", jsonStringLightValue.c_str());
     
-    delay(500);
-  }  
-   
+    delay(1000);
+  }   
 }
