@@ -23,6 +23,8 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BMP280.h>
 #include <ArduinoJson.h>
+#include <map>
+#include <cstring>
 
 #define DHTPIN 4
 #define DHTTYPE DHT11
@@ -45,6 +47,35 @@ long lastMsg = 0;
 char msg[100];
 int value = 0;
 
+// PINES IDENTIFICADOR
+struct Led {
+  int pin;
+  String id;
+};
+
+Led leds[] = {
+  {16, "led1"},
+  {17, "led2"},
+  {5, "led3"},
+  {18, "led4"},
+  {19, "led5"}
+};
+
+struct MsgLed {
+  char set_status[4]; // "ON\0" o "OFF\0"
+  char led_id[6];     // "led1\0", "led2\0", ...
+};
+
+// mapa de leds
+std::map<String, int> ledPinMap;
+
+void filledPinMap() {
+  for (const auto& led : leds) {
+    ledPinMap[led.id] = led.pin;
+  }
+}
+
+
 void setup() {
   
   Serial.begin(9600);
@@ -59,15 +90,11 @@ void setup() {
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
 
-  //Pin sensor de intensidad luminica
-  pinMode(34,INPUT);
-
-  //Pins de luces led
-  pinMode(17,OUTPUT);
-  pinMode(16,OUTPUT);
-  pinMode(18,OUTPUT);
-  pinMode(19,OUTPUT);
-  pinMode(5,OUTPUT);
+  filledPinMap();
+  // activar cada elemento de ledPinMap
+  for (const auto& led : ledPinMap) {
+    pinMode(led.second, OUTPUT);
+  }
   
 }
 
@@ -116,28 +143,32 @@ void callback(char* topic, byte* payload, unsigned int length) {
   }
   
   if (String(topic) == "leds"){
+    DynamicJsonDocument doc(256);
+    deserializeJson(doc, messageTemp);
 
-    String state = messageTemp.substring(0, 3);  // Los primeros 3 caracteres son el estado
-    int lightId = messageTemp.substring(3).toInt(); // Los caracteres restantes son la ID
+    // Obtener set_status y led_id como const char* del JSON
+    const char* set_status = doc["set_status"];
+    const char* led_id = doc["led_id"];
 
     Serial.print("state: ");
-    Serial.println(state);
-    state.trim();
+    Serial.println(set_status);
     Serial.print("light_id: ");
-    Serial.println(lightId);
+    Serial.println(led_id);
     
-    if(state == "ON"){
-       digitalWrite(lightId,HIGH);
-       delay(1000);
-       Serial.println("Led ON");  
-     } 
-     
-     if(state == "OFF"){
-       digitalWrite(lightId,LOW);
-       delay(1000);
-       Serial.println("Led OFF");  
-     }
-   }
+    MsgLed msgLed;
+    strcpy(msgLed.set_status, set_status);
+    strcpy(msgLed.led_id, led_id);
+    
+    if (strcmp(set_status, "ON") == 0) {
+      Serial.println("Encendiendo led");
+      Serial.println(ledPinMap[msgLed.led_id]);
+      digitalWrite(ledPinMap[msgLed.led_id], HIGH);
+    } else if (strcmp(set_status, "OFF") == 0) {
+      Serial.println("Apagando led");
+      Serial.println(ledPinMap[msgLed.led_id]);
+      digitalWrite(ledPinMap[msgLed.led_id], LOW);
+    }
+  }
 }
 
 void reconnect() {
