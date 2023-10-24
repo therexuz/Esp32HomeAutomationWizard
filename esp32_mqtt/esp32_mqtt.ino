@@ -177,6 +177,10 @@ void reconnect() {
     
     // Attempt to connect
     Serial.print("Attempting MQTT connection...");
+
+    if (WiFi.status() != WL_CONNECTED) {
+      Serial.print("no señal");
+    }
     
     if (client.connect("ESP8266Client")) {
       Serial.println("connected");
