@@ -54,11 +54,11 @@ struct Led {
 };
 
 Led leds[] = {
-  {16, "led1"},
-  {17, "led2"},
-  {5, "led3"},
-  {18, "led4"},
-  {19, "led5"}
+  {15, "led1"},
+  {4, "led2"},
+  {16, "led3"},
+  {17, "led4"},
+  {5, "led5"}
 };
 
 struct MsgLed {
