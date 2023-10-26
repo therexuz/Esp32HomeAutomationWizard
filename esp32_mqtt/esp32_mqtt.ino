@@ -61,6 +61,20 @@ Led leds[] = {
   {5, "led5"}
 };
 
+// array rgb colors
+int RGBAZUL[] = {0, 0, 255};
+int RGBROJO[] = {255, 0, 0};
+int RGBVERDE[] = {0, 255, 0};
+int RGBAMARILLO[] = {255, 255, 0};
+int RGBMORADO[] = {255, 0, 255};
+int RGBLILA[] = {0, 255, 255};
+
+const int ledRedPin = 21;
+const int ledBluePin = 19;
+const int ledGreenPin = 18;
+
+const int lightPin = 36;
+
 struct MsgLed {
   char set_status[4]; // "ON\0" o "OFF\0"
   char led_id[6];     // "led1\0", "led2\0", ...
@@ -75,14 +89,20 @@ void filledPinMap() {
   }
 }
 
+void cambiarColorRgb(int rgb[]) {
+  analogWrite(ledRedPin, rgb[0]);
+  analogWrite(ledGreenPin, rgb[1]);
+  analogWrite(ledBluePin, rgb[2]);
+}
 
 void setup() {
   
   Serial.begin(9600);
 
-  //Serial.println("Initiating BPM");
-  //init_bmp();
-  //delay(1000);
+  pinMode(ledRedPin, OUTPUT);
+  pinMode(ledBluePin, OUTPUT);
+  pinMode(ledGreenPin, OUTPUT);
+
   dht.begin();
   Serial.println("Initiating WiFi");
   init_WiFi();
@@ -107,10 +127,12 @@ void init_WiFi() {
 
   // Check wi-fi is connected to wi-fi network
   while (WiFi.status() != WL_CONNECTED) {
+    cambiarColorRgb(RGBROJO);
     delay(1000);
     Serial.print(".");
   }
 
+  cambiarColorRgb(RGBVERDE);
   Serial.println("");
   Serial.println("WiFi connected successfully");
   Serial.print("Got IP: ");
@@ -149,23 +171,14 @@ void callback(char* topic, byte* payload, unsigned int length) {
     // Obtener set_status y led_id como const char* del JSON
     const char* set_status = doc["set_status"];
     const char* led_id = doc["led_id"];
-
-    Serial.print("state: ");
-    Serial.println(set_status);
-    Serial.print("light_id: ");
-    Serial.println(led_id);
     
     MsgLed msgLed;
     strcpy(msgLed.set_status, set_status);
     strcpy(msgLed.led_id, led_id);
     
     if (strcmp(set_status, "ON") == 0) {
-      Serial.println("Encendiendo led");
-      Serial.println(ledPinMap[msgLed.led_id]);
       digitalWrite(ledPinMap[msgLed.led_id], HIGH);
     } else if (strcmp(set_status, "OFF") == 0) {
-      Serial.println("Apagando led");
-      Serial.println(ledPinMap[msgLed.led_id]);
       digitalWrite(ledPinMap[msgLed.led_id], LOW);
     }
   }
@@ -174,15 +187,13 @@ void callback(char* topic, byte* payload, unsigned int length) {
 void reconnect() {
   // Loop until we're reconnected
   while (!client.connected()) {
+    cambiarColorRgb(RGBROJO);
     
     // Attempt to connect
     Serial.print("Attempting MQTT connection...");
-
-    if (WiFi.status() != WL_CONNECTED) {
-      Serial.print("no señal");
-    }
     
     if (client.connect("ESP8266Client")) {
+      cambiarColorRgb(RGBVERDE);
       Serial.println("connected");
       // Subscribe to testing topic
       client.subscribe("test-mqtt");
@@ -199,6 +210,16 @@ void reconnect() {
       client.subscribe("leds");
       client.subscribe("door");
       client.subscribe("ventilation");
+
+      // Publicar estado actual de leds
+      for (const auto& led : ledPinMap) {
+        StaticJsonDocument<256> doc;
+        doc["set_status"] = digitalRead(led.second) == HIGH ? "ON" : "OFF";
+        doc["led_id"] = led.first;
+        char buffer[256];
+        serializeJson(doc, buffer);
+        client.publish("leds", buffer);
+      }
       
     } else {
       
@@ -222,6 +243,7 @@ void loop() {
  
   long now = millis();
   if (now - lastMsg > 5000) {
+    cambiarColorRgb(RGBAZUL);
     lastMsg = now;
 
     doc.clear();
@@ -234,7 +256,7 @@ void loop() {
     int randomValueTemp = random(27, 34);
     int randomValueAirQ = random(27, 34);
     
-    int light_sensor_value = randomValueLight;
+    int light_sensor_value = analogRead(lightPin);
     value["light_sensor"] = light_sensor_value;
         
     float humidity = randomValueHumidity;
