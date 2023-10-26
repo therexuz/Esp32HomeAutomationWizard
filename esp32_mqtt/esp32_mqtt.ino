@@ -1,20 +1,4 @@
-/***************************************************************************
-  This is a library for the BMP280 humidity, temperature & pressure sensor
-
-  Designed specifically to work with the Adafruit BMEP280 Breakout
-  ----> http://www.adafruit.com/products/2651
-
-  These sensors use I2C or SPI to communicate, 2 or 4 pins are required
-  to interface.
-
-  Adafruit invests time and resources providing this open source code,
-  please support Adafruit andopen-source hardware by purchasing products
-  from Adafruit!
-
-  Written by Limor Fried & Kevin Townsend for Adafruit Industries.
-  BSD license, all text above must be included in any redistribution
-***************************************************************************/
-
+// LIBRERIAS
 #include <Wire.h>
 #include <DHT.h>
 #include <SPI.h>
@@ -25,10 +9,14 @@
 #include <ArduinoJson.h>
 #include <map>
 #include <cstring>
+#include <Ticker.h>
+Ticker timer;
 
+// DEFINICIONES
 #define DHTPIN 4
 #define DHTTYPE DHT11
 
+// VARIABLES GLOBALES
 DHT dht(DHTPIN,DHTTYPE);
 
 Adafruit_BMP280 bmp; //I2C
@@ -61,6 +49,12 @@ Led leds[] = {
   {5, "led5"}
 };
 
+const int ledRedPin = 21;
+const int ledBluePin = 19;
+const int ledGreenPin = 18;
+
+const int lightPin = 36;
+
 // array rgb colors
 int RGBAZUL[] = {0, 0, 255};
 int RGBROJO[] = {255, 0, 0};
@@ -68,18 +62,14 @@ int RGBVERDE[] = {0, 255, 0};
 int RGBAMARILLO[] = {255, 255, 0};
 int RGBMORADO[] = {255, 0, 255};
 int RGBLILA[] = {0, 255, 255};
+int RGBNARANJA[] = {255, 165, 0};
 
-const int ledRedPin = 21;
-const int ledBluePin = 19;
-const int ledGreenPin = 18;
 
-const int lightPin = 36;
 
 struct MsgLed {
   char set_status[4]; // "ON\0" o "OFF\0"
   char led_id[6];     // "led1\0", "led2\0", ...
 };
-
 // mapa de leds
 std::map<String, int> ledPinMap;
 
@@ -96,7 +86,6 @@ void cambiarColorRgb(int rgb[]) {
 }
 
 void setup() {
-  
   Serial.begin(9600);
 
   pinMode(ledRedPin, OUTPUT);
@@ -115,28 +104,47 @@ void setup() {
   for (const auto& led : ledPinMap) {
     pinMode(led.second, OUTPUT);
   }
-  
+  timer.attach(5, enviarDatos);
 }
 
 void init_WiFi() {
   Serial.println("Try Connecting to ");
   Serial.println(ssid);
 
+  int intentos = 0;
+  int maxIntentos = 5;
+  unsigned long tiempoInicio = millis();
+  unsigned long timeout = 10000; // Tiempo máximo de espera en milisegundos (por ejemplo, 10 segundos)
+
   // Connect to your wi-fi modem
   WiFi.begin(ssid, password);
 
   // Check wi-fi is connected to wi-fi network
-  while (WiFi.status() != WL_CONNECTED) {
-    cambiarColorRgb(RGBROJO);
+  while (intentos < maxIntentos && WiFi.status() != WL_CONNECTED) {
+    cambiarColorRgb(RGBNARANJA);
     delay(1000);
     Serial.print(".");
+
+    if (millis() - tiempoInicio > timeout) {
+      tiempoInicio = millis();
+      intentos++;
+      WiFi.begin(ssid, password);
+    }
   }
 
-  cambiarColorRgb(RGBVERDE);
-  Serial.println("");
-  Serial.println("WiFi connected successfully");
-  Serial.print("Got IP: ");
-  Serial.println(WiFi.localIP());  //Show ESP32 IP on serial
+  if (WiFi.status() == WL_CONNECTED) {
+    cambiarColorRgb(RGBVERDE);
+    Serial.println("");
+    Serial.println("WiFi connected successfully");
+    Serial.print("Got IP: ");
+    Serial.println(WiFi.localIP());  //Show ESP32 IP on serial
+  } else {
+    cambiarColorRgb(RGBROJO);
+    Serial.println("");
+    Serial.println("WiFi connected failed");
+    Serial.print("Got IP: ");
+    Serial.println(WiFi.localIP());  //Show ESP32 IP on serial
+  }
 }
 
 void init_bmp() {
@@ -184,10 +192,40 @@ void callback(char* topic, byte* payload, unsigned int length) {
   }
 }
 
+void suscripcionTopicos() {
+  // Subscribe to testing topic
+  client.subscribe("test-mqtt");
+  client.subscribe("test-result");
+  
+  // Subscribe to sensor topics
+  client.subscribe("humidity");
+  client.subscribe("temperature");
+  client.subscribe("pressure");
+  client.subscribe("air_quality");
+  client.subscribe("light");
+  
+  // Subscribe to actuator topics
+  client.subscribe("leds");
+  client.subscribe("door");
+  client.subscribe("ventilation");
+}
+
+void actualizarEstadoActuadores() {
+  // Publicar estado actual de leds
+  for (const auto& led : ledPinMap) {
+    StaticJsonDocument<256> doc;
+    doc["set_status"] = digitalRead(led.second) == HIGH ? "ON" : "OFF";
+    doc["led_id"] = led.first;
+    char buffer[256];
+    serializeJson(doc, buffer);
+    client.publish("leds", buffer);
+  }
+}
+
 void reconnect() {
   // Loop until we're reconnected
   while (!client.connected()) {
-    cambiarColorRgb(RGBROJO);
+    cambiarColorRgb(RGBNARANJA);
     
     // Attempt to connect
     Serial.print("Attempting MQTT connection...");
@@ -195,96 +233,67 @@ void reconnect() {
     if (client.connect("ESP8266Client")) {
       cambiarColorRgb(RGBVERDE);
       Serial.println("connected");
-      // Subscribe to testing topic
-      client.subscribe("test-mqtt");
-      client.subscribe("test-result");
       
-      // Subscribe to sensor topics
-      client.subscribe("humidity");
-      client.subscribe("temperature");
-      client.subscribe("pressure");
-      client.subscribe("air_quality");
-      client.subscribe("light");
-      
-      // Subscribe to actuator topics
-      client.subscribe("leds");
-      client.subscribe("door");
-      client.subscribe("ventilation");
+      // Suscribirse a tópicos
+      suscripcionTopicos();
 
-      // Publicar estado actual de leds
-      for (const auto& led : ledPinMap) {
-        StaticJsonDocument<256> doc;
-        doc["set_status"] = digitalRead(led.second) == HIGH ? "ON" : "OFF";
-        doc["led_id"] = led.first;
-        char buffer[256];
-        serializeJson(doc, buffer);
-        client.publish("leds", buffer);
-      }
+      // Actualizar estado de actuadores
+      actualizarEstadoActuadores();
       
     } else {
-      
+      cambiarColorRgb(RGBROJO);
       Serial.print("failed, rc=");
       Serial.print(client.state());
       Serial.println(" try again in 5 seconds");
-      
       // Wait 5 seconds before retrying
       delay(5000);
     }
   }
 }
 
+void enviarDatos() {
+  cambiarColorRgb(RGBAZUL);
+
+  doc.clear();
+  JsonObject device = doc.createNestedObject("ESP32 MQTT CLIENT");
+  JsonObject value = device.createNestedObject("value");
+
+  int randomValueLight = random(0, 100);
+  int randomValueHumidity = random(0, 100);
+  int randomValueTemp = random(27, 34);
+  int randomValueAirQ = random(27, 34);
+
+  int light_sensor_value = analogRead(lightPin);
+  value["light_sensor"] = light_sensor_value;
+  float humidity = randomValueHumidity;
+  value["act_humidity"] = humidity;
+  float temperature_celcius = randomValueTemp;
+  value["act_temperature"] = temperature_celcius;
+  float air_quality = randomValueAirQ;
+  value["air_quality"] = air_quality;
+
+  String jsonStringHumidity;
+  serializeJson(doc["ESP32 MQTT CLIENT"]["value"]["act_humidity"], jsonStringHumidity);
+  client.publish("humidity", jsonStringHumidity.c_str());
+
+  String jsonStringTemperature;
+  serializeJson(doc["ESP32 MQTT CLIENT"]["value"]["act_temperature"], jsonStringTemperature);
+  client.publish("temperature", jsonStringTemperature.c_str());
+
+  String jsonStringLightValue;
+  serializeJson(doc["ESP32 MQTT CLIENT"]["value"]["light_sensor"], jsonStringLightValue);
+  client.publish("light", jsonStringLightValue.c_str());
+
+  String jsonStringAirQValue;
+  serializeJson(doc["ESP32 MQTT CLIENT"]["value"]["air_quality"], jsonStringAirQValue);
+  client.publish("air_quality", jsonStringAirQValue.c_str());
+}
+
+
 void loop() {
-  
   if (!client.connected()) {
     reconnect();
   }
   
   client.loop();
- 
-  long now = millis();
-  if (now - lastMsg > 5000) {
-    cambiarColorRgb(RGBAZUL);
-    lastMsg = now;
-
-    doc.clear();
-    
-    JsonObject device = doc.createNestedObject("ESP32 MQTT CLIENT");
-    JsonObject value = device.createNestedObject("value");
-
-    int randomValueLight = random(0, 100);
-    int randomValueHumidity = random(0, 100);
-    int randomValueTemp = random(27, 34);
-    int randomValueAirQ = random(27, 34);
-    
-    int light_sensor_value = analogRead(lightPin);
-    value["light_sensor"] = light_sensor_value;
-        
-    float humidity = randomValueHumidity;
-    value["act_humidity"] = humidity;
-
-    float temperature_celcius = randomValueTemp;
-    value["act_temperature"] = temperature_celcius;
-
-    float air_quality = randomValueAirQ;
-    value["air_quality"] = air_quality;
-
-    String jsonStringHumidity;
-    serializeJson(doc["ESP32 MQTT CLIENT"]["value"]["act_humidity"], jsonStringHumidity);
-    
-    client.publish("humidity", jsonStringHumidity.c_str());
-
-    String jsonStringTemperature;
-    serializeJson(doc["ESP32 MQTT CLIENT"]["value"]["act_temperature"], jsonStringTemperature);
-    client.publish("temperature", jsonStringTemperature.c_str());
-
-    String jsonStringLightValue;
-    serializeJson(doc["ESP32 MQTT CLIENT"]["value"]["light_sensor"], jsonStringLightValue);
-    client.publish("light", jsonStringLightValue.c_str());
-
-    String jsonStringAirQValue;
-    serializeJson(doc["ESP32 MQTT CLIENT"]["value"]["air_quality"], jsonStringAirQValue);
-    client.publish("air_quality", jsonStringAirQValue.c_str());
-    
-    delay(1000);
-  }   
 }
