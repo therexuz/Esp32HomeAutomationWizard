@@ -10,6 +10,7 @@
 #include <map>
 #include <cstring>
 #include <Ticker.h>
+#include <ESP32Servo.h>
 Ticker timer;
 
 // DEFINICIONES
@@ -21,6 +22,7 @@ DHT dht(DHTPIN,DHTTYPE);
 
 Adafruit_BMP280 bmp; //I2C
 StaticJsonDocument<200> doc;
+Servo miServo;
 
 // Replace the next variables with your SSID/Password combination
 const char* ssid = "MQTT-RASP-AP";
@@ -49,9 +51,9 @@ Led leds[] = {
   {5, "led5"}
 };
 
-const int ledRedPin = 21;
-const int ledBluePin = 19;
-const int ledGreenPin = 18;
+const int ledRedPin = 13;
+const int ledBluePin = 14;
+const int ledGreenPin = 12;
 
 const int lightPin = 36;
 
@@ -63,8 +65,6 @@ int RGBAMARILLO[] = {255, 255, 0};
 int RGBMORADO[] = {255, 0, 255};
 int RGBLILA[] = {0, 255, 255};
 int RGBNARANJA[] = {255, 165, 0};
-
-
 
 struct MsgLed {
   char set_status[4]; // "ON\0" o "OFF\0"
@@ -104,6 +104,9 @@ void setup() {
   for (const auto& led : ledPinMap) {
     pinMode(led.second, OUTPUT);
   }
+
+  miServo.attach(18);
+
   timer.attach(5, enviarDatos);
 }
 
@@ -188,6 +191,29 @@ void callback(char* topic, byte* payload, unsigned int length) {
       digitalWrite(ledPinMap[msgLed.led_id], HIGH);
     } else if (strcmp(set_status, "OFF") == 0) {
       digitalWrite(ledPinMap[msgLed.led_id], LOW);
+    }
+  }
+  if (String(topic) == "door"){
+    DynamicJsonDocument doc(256);
+    deserializeJson(doc, messageTemp);
+
+    // Obtener set_status y led_id como const char* del JSON
+    const char* set_status = doc["set_status"];
+
+    MsgLed msgPuerta;
+    strcpy(msgPuerta.set_status, set_status);
+
+    if(strcmp(set_status, "OPEN") == 0){
+      Serial.println(set_status);
+      for (int pos = 0; pos <= 180; pos += 1) {
+        miServo.write(pos);
+      }
+    }
+    if(strcmp(set_status, "CLOSE") == 0){
+      Serial.println(set_status);
+      for (int pos = 180; pos >= 0; pos -= 1) {
+        miServo.write(pos);
+      }
     }
   }
 }
@@ -294,6 +320,5 @@ void loop() {
   if (!client.connected()) {
     reconnect();
   }
-  
   client.loop();
 }
