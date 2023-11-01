@@ -57,6 +57,8 @@ const int ledGreenPin = 12;
 
 const int lightPin = 36;
 
+const int doorPin = 18;
+
 // array rgb colors
 int RGBAZUL[] = {0, 0, 255};
 int RGBROJO[] = {255, 0, 0};
@@ -105,8 +107,7 @@ void setup() {
     pinMode(led.second, OUTPUT);
   }
 
-  miServo.attach(18);
-
+  miServo.attach(doorPin);
   timer.attach(5, enviarDatos);
 }
 
@@ -249,6 +250,13 @@ void actualizarEstadoActuadores() {
 }
 
 void reconnect() {
+  //verificar conexion wifi
+  while (WiFi.status() != WL_CONNECTED) {
+    cambiarColorRgb(RGBMORADO);
+    Serial.println("WiFi not connected");
+    init_WiFi();
+  }
+
   // Loop until we're reconnected
   while (!client.connected()) {
     cambiarColorRgb(RGBNARANJA);
