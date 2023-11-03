@@ -146,8 +146,6 @@ void init_WiFi() {
     cambiarColorRgb(RGBROJO);
     Serial.println("");
     Serial.println("WiFi connected failed");
-    Serial.print("Got IP: ");
-    Serial.println(WiFi.localIP());  //Show ESP32 IP on serial
   }
 }
 
@@ -208,12 +206,16 @@ void callback(char* topic, byte* payload, unsigned int length) {
       Serial.println(set_status);
       for (int pos = 0; pos <= 180; pos += 1) {
         miServo.write(pos);
+        Serial.print("pos mov: ");
+        Serial.println(miServo.read());
       }
     }
     if(strcmp(set_status, "CLOSE") == 0){
       Serial.println(set_status);
       for (int pos = 180; pos >= 0; pos -= 1) {
         miServo.write(pos);
+        Serial.print("pos mov: ");
+        Serial.println(miServo.read());
       }
     }
   }
