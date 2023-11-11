@@ -55,7 +55,7 @@ const int ledRedPin = 13;
 const int ledBluePin = 14;
 const int ledGreenPin = 12;
 
-const int lightPin = 36;
+const int lightPin = 34;
 
 const int doorPin = 18;
 
@@ -301,9 +301,9 @@ void enviarDatos() {
 
   int light_sensor_value = analogRead(lightPin);
   value["light_sensor"] = light_sensor_value;
-  float humidity = randomValueHumidity;
+  float humidity = dht.readHumidity();
   value["act_humidity"] = humidity;
-  float temperature_celcius = randomValueTemp;
+  float temperature_celcius = dht.readTemperature();
   value["act_temperature"] = temperature_celcius;
   float air_quality = randomValueAirQ;
   value["air_quality"] = air_quality;
