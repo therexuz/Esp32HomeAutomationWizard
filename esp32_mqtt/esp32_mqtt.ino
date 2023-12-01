@@ -180,7 +180,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
     // Obtener set_status y led_id como const char* del JSON
     const char* set_status = doc["set_status"];
-    const char* led_id = doc["led_id"];
+    const char* led_id = doc["actuador_id"];
     
     MsgLed msgLed;
     strcpy(msgLed.set_status, set_status);
@@ -244,7 +244,7 @@ void actualizarEstadoActuadores() {
   for (const auto& led : ledPinMap) {
     StaticJsonDocument<256> doc;
     doc["set_status"] = digitalRead(led.second) == HIGH ? "ON" : "OFF";
-    doc["led_id"] = led.first;
+    doc["actuador_id"] = led.first;
     char buffer[256];
     serializeJson(doc, buffer);
     client.publish("Led", buffer);
