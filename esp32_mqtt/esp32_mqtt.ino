@@ -174,7 +174,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
     }
   }
   
-  if (String(topic) == "leds"){
+  if (String(topic) == "Led"){
     DynamicJsonDocument doc(256);
     deserializeJson(doc, messageTemp);
 
@@ -192,7 +192,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
       digitalWrite(ledPinMap[msgLed.led_id], LOW);
     }
   }
-  if (String(topic) == "door"){
+  if (String(topic) == "Puerta"){
     DynamicJsonDocument doc(256);
     deserializeJson(doc, messageTemp);
 
@@ -234,8 +234,8 @@ void suscripcionTopicos() {
   client.subscribe("light");
   
   // Subscribe to actuator topics
-  client.subscribe("leds");
-  client.subscribe("door");
+  client.subscribe("Led");
+  client.subscribe("Puerta");
   client.subscribe("ventilation");
 }
 
@@ -247,8 +247,14 @@ void actualizarEstadoActuadores() {
     doc["led_id"] = led.first;
     char buffer[256];
     serializeJson(doc, buffer);
-    client.publish("leds", buffer);
+    client.publish("Led", buffer);
   }
+  StaticJsonDocument<256> doc;
+  doc["set_status"] = "OFF";
+  doc["puerta_id"] = "puerta1";
+  char buffer[256];
+  serializeJson(doc, buffer);
+  client.publish("Puerta", buffer);
 }
 
 void reconnect() {
