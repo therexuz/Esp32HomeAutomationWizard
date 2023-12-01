@@ -42,7 +42,7 @@ struct Led {
   int pin;
   String id;
 };
-
+                                        
 Led leds[] = {
   {15, "led1"},
   {4, "led2"},
@@ -90,13 +90,11 @@ void cambiarColorRgb(int rgb[]) {
 void setup() {
   Serial.begin(9600);
 
-  pinMode(ledRedPin, OUTPUT);
-  pinMode(ledBluePin, OUTPUT);
-  pinMode(ledGreenPin, OUTPUT);
+  iniciarRGB();
 
-  dht.begin();
+  iniciarDHT();
   Serial.println("Initiating WiFi");
-  init_WiFi();
+  iniciarWiFi();
 
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
@@ -111,7 +109,17 @@ void setup() {
   timer.attach(5, enviarDatos);
 }
 
-void init_WiFi() {
+void iniciarRGB(){
+  pinMode(ledRedPin, OUTPUT);
+  pinMode(ledBluePin, OUTPUT);
+  pinMode(ledGreenPin, OUTPUT);
+}
+
+void iniciarDHT() {
+  dht.begin();
+}
+
+void iniciarWiFi() {
   Serial.println("Try Connecting to ");
   Serial.println(ssid);
 
@@ -251,7 +259,7 @@ void actualizarEstadoActuadores() {
   }
   StaticJsonDocument<256> doc;
   doc["set_status"] = "OFF";
-  doc["puerta_id"] = "puerta1";
+  doc["actuador_id"] = "puerta1";
   char buffer[256];
   serializeJson(doc, buffer);
   client.publish("Puerta", buffer);
@@ -262,7 +270,7 @@ void reconnect() {
   while (WiFi.status() != WL_CONNECTED) {
     cambiarColorRgb(RGBMORADO);
     Serial.println("WiFi not connected");
-    init_WiFi();
+    iniciarWiFi();
   }
 
   // Loop until we're reconnected
@@ -296,41 +304,29 @@ void reconnect() {
 void enviarDatos() {
   cambiarColorRgb(RGBAZUL);
 
-  doc.clear();
-  JsonObject device = doc.createNestedObject("ESP32 MQTT CLIENT");
-  JsonObject value = device.createNestedObject("value");
-
   int randomValueLight = random(0, 100);
   int randomValueHumidity = random(0, 100);
   int randomValueTemp = random(27, 34);
   int randomValueAirQ = random(27, 34);
-
   int light_sensor_value = analogRead(lightPin);
-  value["light_sensor"] = light_sensor_value;
-  float humidity = randomValueHumidity;
-  value["act_humidity"] = humidity;
-  float temperature_celcius = randomValueTemp;
-  value["act_temperature"] = temperature_celcius;
-  float air_quality = randomValueAirQ;
-  value["air_quality"] = air_quality;
 
-  String jsonStringHumidity;
-  serializeJson(doc["ESP32 MQTT CLIENT"]["value"]["act_humidity"], jsonStringHumidity);
-  client.publish("humidity", jsonStringHumidity.c_str());
-
-  String jsonStringTemperature;
-  serializeJson(doc["ESP32 MQTT CLIENT"]["value"]["act_temperature"], jsonStringTemperature);
-  client.publish("temperature", jsonStringTemperature.c_str());
-
-  String jsonStringLightValue;
-  serializeJson(doc["ESP32 MQTT CLIENT"]["value"]["light_sensor"], jsonStringLightValue);
-  client.publish("light", jsonStringLightValue.c_str());
-
-  String jsonStringAirQValue;
-  serializeJson(doc["ESP32 MQTT CLIENT"]["value"]["air_quality"], jsonStringAirQValue);
-  client.publish("air_quality", jsonStringAirQValue.c_str());
+  publishSensorData("light", "light_sensor", light_sensor_value);
+  publishSensorData("humidity", "act_humidity", randomValueHumidity);
+  publishSensorData("temperature", "act_temperature", randomValueTemp);
+  publishSensorData("air_quality", "air_quality", randomValueAirQ);
 }
 
+void publishSensorData(const char* topic, const char* key, int sensorValue) {
+  doc.clear();
+  JsonObject device = doc.createNestedObject("ESP32 MQTT CLIENT");
+  JsonObject value = device.createNestedObject("value");
+
+  value[key] = sensorValue;
+
+  String jsonString;
+  serializeJson(doc["ESP32 MQTT CLIENT"]["value"][key], jsonString);
+  client.publish(topic, jsonString.c_str());
+}
 
 void loop() {
   if (!client.connected()) {
