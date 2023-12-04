@@ -14,7 +14,7 @@
 Ticker timer;
 
 // DEFINICIONES
-#define DHTPIN 4
+#define DHTPIN 27
 #define DHTTYPE DHT11
 
 // VARIABLES GLOBALES
@@ -305,8 +305,8 @@ void enviarDatos() {
   cambiarColorRgb(RGBAZUL);
 
   int randomValueLight = random(0, 100);
-  int randomValueHumidity = random(0, 100);
-  int randomValueTemp = random(27, 34);
+  int randomValueHumidity = dht.readHumidity();
+  int randomValueTemp = dht.readTemperature();
   int randomValueAirQ = random(27, 34);
   int light_sensor_value = analogRead(lightPin);
 
