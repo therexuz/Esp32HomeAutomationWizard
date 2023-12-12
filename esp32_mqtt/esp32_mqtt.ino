@@ -14,7 +14,7 @@
 Ticker timer;
 
 // DEFINICIONES
-#define DHTPIN 4
+#define DHTPIN 27
 #define DHTTYPE DHT11
 
 // VARIABLES GLOBALES
@@ -42,7 +42,7 @@ struct Led {
   int pin;
   String id;
 };
-
+                                        
 Led leds[] = {
   {15, "led1"},
   {4, "led2"},
@@ -90,13 +90,11 @@ void cambiarColorRgb(int rgb[]) {
 void setup() {
   Serial.begin(9600);
 
-  pinMode(ledRedPin, OUTPUT);
-  pinMode(ledBluePin, OUTPUT);
-  pinMode(ledGreenPin, OUTPUT);
+  iniciarRGB();
 
-  dht.begin();
+  iniciarDHT();
   Serial.println("Initiating WiFi");
-  init_WiFi();
+  iniciarWiFi();
 
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
@@ -111,7 +109,17 @@ void setup() {
   timer.attach(5, enviarDatos);
 }
 
-void init_WiFi() {
+void iniciarRGB(){
+  pinMode(ledRedPin, OUTPUT);
+  pinMode(ledBluePin, OUTPUT);
+  pinMode(ledGreenPin, OUTPUT);
+}
+
+void iniciarDHT() {
+  dht.begin();
+}
+
+void iniciarWiFi() {
   Serial.println("Try Connecting to ");
   Serial.println(ssid);
 
@@ -174,13 +182,13 @@ void callback(char* topic, byte* payload, unsigned int length) {
     }
   }
   
-  if (String(topic) == "leds"){
+  if (String(topic) == "Led"){
     DynamicJsonDocument doc(256);
     deserializeJson(doc, messageTemp);
 
     // Obtener set_status y led_id como const char* del JSON
     const char* set_status = doc["set_status"];
-    const char* led_id = doc["led_id"];
+    const char* led_id = doc["actuador_id"];
     
     MsgLed msgLed;
     strcpy(msgLed.set_status, set_status);
@@ -192,7 +200,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
       digitalWrite(ledPinMap[msgLed.led_id], LOW);
     }
   }
-  if (String(topic) == "door"){
+  if (String(topic) == "Puerta"){
     DynamicJsonDocument doc(256);
     deserializeJson(doc, messageTemp);
 
@@ -234,8 +242,8 @@ void suscripcionTopicos() {
   client.subscribe("light");
   
   // Subscribe to actuator topics
-  client.subscribe("leds");
-  client.subscribe("door");
+  client.subscribe("Led");
+  client.subscribe("Puerta");
   client.subscribe("ventilation");
 }
 
@@ -244,11 +252,17 @@ void actualizarEstadoActuadores() {
   for (const auto& led : ledPinMap) {
     StaticJsonDocument<256> doc;
     doc["set_status"] = digitalRead(led.second) == HIGH ? "ON" : "OFF";
-    doc["led_id"] = led.first;
+    doc["actuador_id"] = led.first;
     char buffer[256];
     serializeJson(doc, buffer);
-    client.publish("leds", buffer);
+    client.publish("Led", buffer);
   }
+  StaticJsonDocument<256> doc;
+  doc["set_status"] = "OFF";
+  doc["actuador_id"] = "puerta1";
+  char buffer[256];
+  serializeJson(doc, buffer);
+  client.publish("Puerta", buffer);
 }
 
 void reconnect() {
@@ -256,7 +270,7 @@ void reconnect() {
   while (WiFi.status() != WL_CONNECTED) {
     cambiarColorRgb(RGBMORADO);
     Serial.println("WiFi not connected");
-    init_WiFi();
+    iniciarWiFi();
   }
 
   // Loop until we're reconnected
@@ -290,15 +304,26 @@ void reconnect() {
 void enviarDatos() {
   cambiarColorRgb(RGBAZUL);
 
+  int randomValueLight = random(0, 100);
+  int randomValueHumidity = dht.readHumidity();
+  int randomValueTemp = dht.readTemperature();
+  int randomValueAirQ = random(27, 34);
+  int light_sensor_value = analogRead(lightPin);
+
+  publishSensorData("light", "light_sensor", light_sensor_value);
+  publishSensorData("humidity", "act_humidity", randomValueHumidity);
+  publishSensorData("temperature", "act_temperature", randomValueTemp);
+  publishSensorData("air_quality", "air_quality", randomValueAirQ);
+}
+
+void publishSensorData(const char* topic, const char* key, int sensorValue) {
   doc.clear();
   JsonObject device = doc.createNestedObject("ESP32 MQTT CLIENT");
   JsonObject value = device.createNestedObject("value");
 
-  int randomValueLight = random(0, 100);
-  int randomValueHumidity = random(0, 100);
-  int randomValueTemp = random(27, 34);
-  int randomValueAirQ = random(27, 34);
+  value[key] = sensorValue;
 
+<<<<<<< HEAD
   int light_sensor_value = analogRead(lightPin);
   value["light_sensor"] = light_sensor_value;
   float humidity = dht.readHumidity();
@@ -323,8 +348,12 @@ void enviarDatos() {
   String jsonStringAirQValue;
   serializeJson(doc["ESP32 MQTT CLIENT"]["value"]["air_quality"], jsonStringAirQValue);
   client.publish("air_quality", jsonStringAirQValue.c_str());
+=======
+  String jsonString;
+  serializeJson(doc["ESP32 MQTT CLIENT"]["value"][key], jsonString);
+  client.publish(topic, jsonString.c_str());
+>>>>>>> a3b288bb5c8cb9cfc089e7a611f53f84bc7cfece
 }
-
 
 void loop() {
   if (!client.connected()) {
