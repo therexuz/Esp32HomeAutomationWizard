@@ -244,7 +244,7 @@ void suscripcionTopicos() {
   // Subscribe to actuator topics
   client.subscribe("Led");
   client.subscribe("Puerta");
-  client.subscribe("ventilation");
+  client.subscribe("Ventilador");
 }
 
 void actualizarEstadoActuadores() {
