@@ -323,36 +323,9 @@ void publishSensorData(const char* topic, const char* key, int sensorValue) {
 
   value[key] = sensorValue;
 
-<<<<<<< HEAD
-  int light_sensor_value = analogRead(lightPin);
-  value["light_sensor"] = light_sensor_value;
-  float humidity = dht.readHumidity();
-  value["act_humidity"] = humidity;
-  float temperature_celcius = dht.readTemperature();
-  value["act_temperature"] = temperature_celcius;
-  float air_quality = randomValueAirQ;
-  value["air_quality"] = air_quality;
-
-  String jsonStringHumidity;
-  serializeJson(doc["ESP32 MQTT CLIENT"]["value"]["act_humidity"], jsonStringHumidity);
-  client.publish("humidity", jsonStringHumidity.c_str());
-
-  String jsonStringTemperature;
-  serializeJson(doc["ESP32 MQTT CLIENT"]["value"]["act_temperature"], jsonStringTemperature);
-  client.publish("temperature", jsonStringTemperature.c_str());
-
-  String jsonStringLightValue;
-  serializeJson(doc["ESP32 MQTT CLIENT"]["value"]["light_sensor"], jsonStringLightValue);
-  client.publish("light", jsonStringLightValue.c_str());
-
-  String jsonStringAirQValue;
-  serializeJson(doc["ESP32 MQTT CLIENT"]["value"]["air_quality"], jsonStringAirQValue);
-  client.publish("air_quality", jsonStringAirQValue.c_str());
-=======
   String jsonString;
   serializeJson(doc["ESP32 MQTT CLIENT"]["value"][key], jsonString);
   client.publish(topic, jsonString.c_str());
->>>>>>> a3b288bb5c8cb9cfc089e7a611f53f84bc7cfece
 }
 
 void loop() {
